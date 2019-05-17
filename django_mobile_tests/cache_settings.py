@@ -1,9 +1,9 @@
 from settings import *
 
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = (
     'django.middleware.cache.UpdateCacheMiddleware',
-) + MIDDLEWARE_CLASSES + (
+) + MIDDLEWARE + (
     'django_mobile.cache.middleware.CacheFlavourMiddleware',
     'django.middleware.cache.FetchFromCacheMiddleware',
 )

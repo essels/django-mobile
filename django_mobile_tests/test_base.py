@@ -1,16 +1,19 @@
 import threading
 import sys
 from django.contrib.sessions.models import Session
-from django.template import RequestContext, TemplateDoesNotExist
+from django.template import TemplateDoesNotExist
 from django.test import Client, TestCase
 from mock import MagicMock, Mock, patch
 from django_mobile import get_flavour, set_flavour
 from django_mobile.conf import settings
 from django_mobile.compat import get_engine
-from django_mobile.middleware import MobileDetectionMiddleware, \
+from django_mobile.middleware import (
+    MobileDetectionMiddleware,
     SetFlavourMiddleware
+)
 
 IS_PYTHON_3 = sys.version > '3'
+
 
 def _reset():
     '''
@@ -20,15 +23,17 @@ def _reset():
     del django_mobile._local
     django_mobile._local = threading.local()
 
-def str_p3_response( string ) :
+
+def str_p3_response(string):
     """
     Since response.content is a binary string in python 3,
     we decode it to make it comparable to str objects
     ( python 2 compatibility )
     """
     if IS_PYTHON_3 :
-        return string.decode( 'ASCII' )
+        return string.decode('ASCII')
     return string
+
 
 class BaseTestCase(TestCase):
     def setUp(self):
@@ -94,8 +99,8 @@ class TemplateLoaderTests(BaseTestCase):
     def test_load_template_on_filesystem(self):
         from django.template.loaders import app_directories, filesystem
 
-        @patch.object(app_directories.Loader, 'load_template')
-        @patch.object(filesystem.Loader, 'load_template')
+        @patch.object(app_directories.Loader, 'get_template')
+        @patch.object(filesystem.Loader, 'get_template')
         def testing(filesystem_loader, app_directories_loader):
             filesystem_loader.side_effect = TemplateDoesNotExist('error')
             app_directories_loader.side_effect = TemplateDoesNotExist('error')
@@ -105,27 +110,27 @@ class TemplateLoaderTests(BaseTestCase):
 
             set_flavour('mobile')
             try:
-                loader.load_template('base.html', template_dirs=None)
+                loader.load_template('base.html')
             except TemplateDoesNotExist:
                 pass
-            self.assertEqual(filesystem_loader.call_args[0][0], 'mobile/base.html')
-            self.assertEqual(app_directories_loader.call_args[0][0], 'mobile/base.html')
+            self.assertEqual(filesystem_loader.call_args, 'mobile/base.html')
+            self.assertEqual(app_directories_loader.call_args, 'mobile/base.html')
 
             set_flavour('full')
             try:
-                loader.load_template('base.html', template_dirs=None)
+                loader.load_template('base.html')
             except TemplateDoesNotExist:
                 pass
-            self.assertEqual(filesystem_loader.call_args[0][0], 'full/base.html')
-            self.assertEqual(app_directories_loader.call_args[0][0], 'full/base.html')
+            self.assertEqual(filesystem_loader.call_args, 'full/base.html')
+            self.assertEqual(app_directories_loader.call_args, 'full/base.html')
 
         testing()
 
     def test_load_template_source_on_filesystem(self):
         from django.template.loaders import app_directories, filesystem
 
-        @patch.object(app_directories.Loader, 'load_template_source')
-        @patch.object(filesystem.Loader, 'load_template_source')
+        @patch.object(app_directories.Loader, 'get_template_sources')
+        @patch.object(filesystem.Loader, 'get_template_sources')
         def testing(filesystem_loader, app_directories_loader):
             filesystem_loader.side_effect = TemplateDoesNotExist('error')
             app_directories_loader.side_effect = TemplateDoesNotExist('error')
@@ -135,30 +140,29 @@ class TemplateLoaderTests(BaseTestCase):
 
             set_flavour('mobile')
             try:
-                loader.load_template_source('base.html', template_dirs=None)
+                loader.load_template_source('base.html')
             except TemplateDoesNotExist:
                 pass
-            self.assertEqual(filesystem_loader.call_args[0][0], 'mobile/base.html')
-            self.assertEqual(app_directories_loader.call_args[0][0], 'mobile/base.html')
+            self.assertEqual(filesystem_loader.call_args, 'mobile/base.html')
+            self.assertEqual(app_directories_loader.call_args, 'mobile/base.html')
 
             set_flavour('full')
             try:
-                loader.load_template_source('base.html', template_dirs=None)
+                loader.load_template_source('base.html')
             except TemplateDoesNotExist:
                 pass
-            self.assertEqual(filesystem_loader.call_args[0][0], 'full/base.html')
-            self.assertEqual(app_directories_loader.call_args[0][0], 'full/base.html')
+            self.assertEqual(filesystem_loader.call_args, 'full/base.html')
+            self.assertEqual(app_directories_loader.call_args, 'full/base.html')
 
         testing()
 
     def test_functional(self):
         from django.template.loader import render_to_string
-        set_flavour('full')
         result = render_to_string('index.html')
         result = result.strip()
         self.assertEqual(result, 'Hello .')
-        # simulate RequestContext
-        result = render_to_string('index.html', context_instance=RequestContext(Mock()))
+        set_flavour('full')
+        result = render_to_string('index.html')
         result = result.strip()
         self.assertEqual(result, 'Hello full.')
         set_flavour('mobile')
@@ -215,21 +219,23 @@ class SetFlavourMiddlewareTests(BaseTestCase):
         request.GET = {'flavour': 'mobile'}
         middleware = SetFlavourMiddleware()
         middleware.process_request(request)
-        self.assertEqual(set_flavour.call_args,
-            (('mobile', request), {'permanent': True}))
+        self.assertEqual(
+            set_flavour.call_args,
+            (('mobile', request), {'permanent': True})
+        )
 
 
 class RealAgentNameTests(BaseTestCase):
     def assertFullFlavour(self, agent):
         client = Client(HTTP_USER_AGENT=agent)
         response = client.get('/')
-        if str_p3_response( response.content.strip() ) != 'Hello full.':
+        if str_p3_response(response.content.strip()) != 'Hello full.':
             self.fail(u'Agent is matched as mobile: %s' % agent)
 
     def assertMobileFlavour(self, agent):
         client = Client(HTTP_USER_AGENT=agent)
         response = client.get('/')
-        if str_p3_response( response.content.strip() ) != 'Mobile!':
+        if str_p3_response(response.content.strip()) != 'Mobile!':
             self.fail(u'Agent is not matched as mobile: %s' % agent)
 
     def test_ipad(self):
@@ -259,26 +265,50 @@ class RegressionTests(BaseTestCase):
         Regression test of issue #2
         '''
         response = self.desktop.get('/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Hello full.')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Hello full.'
+        )
 
         response = self.mobile.get('/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Mobile!')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Mobile!'
+        )
 
         response = self.desktop.get('/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Hello full.')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Hello full.'
+        )
 
         response = self.mobile.get('/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Mobile!')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Mobile!'
+        )
 
     def test_cache_page_decorator(self):
         response = self.mobile.get('/cached/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Mobile!')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Mobile!'
+        )
 
         response = self.desktop.get('/cached/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Hello full.')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Hello full.'
+        )
 
         response = self.mobile.get('/cached/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Mobile!')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Mobile!'
+        )
 
         response = self.desktop.get('/cached/')
-        self.assertEqual( str_p3_response( response.content.strip() ), 'Hello full.')
+        self.assertEqual(
+            str_p3_response(response.content.strip()),
+            'Hello full.'
+        )
